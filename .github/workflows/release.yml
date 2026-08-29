@@ -1,0 +1,84 @@
+name: Build and Release Latest
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows Binaries
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore JustSTT.csproj
+
+      # 1. Framework-dependent Single-File Build (~2 MB)
+      - name: Build Framework-Dependent Single-File
+        shell: pwsh
+        run: |
+          dotnet publish JustSTT.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish-fd
+          Compress-Archive -Path ./publish-fd/* -DestinationPath ./JsttWin-x64-framework-dependent.zip
+
+      # 2. Self-Contained Single-File Build (Runs out of the box without .NET installed)
+      - name: Build Self-Contained Single-File
+        shell: pwsh
+        run: |
+          dotnet publish JustSTT.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ./publish-sc
+          Compress-Archive -Path ./publish-sc/* -DestinationPath ./JsttWin-x64-self-contained.zip
+          Copy-Item ./publish-sc/JsttWin.exe ./JsttWin.exe
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: JsttWin-Windows-x64
+          path: |
+            JsttWin.exe
+            JsttWin-x64-self-contained.zip
+            JsttWin-x64-framework-dependent.zip
+
+      - name: Publish GitHub Release (Latest Rolling Release)
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+        with:
+          tag_name: latest
+          name: "Just Speech to Text — Latest Build"
+          body: |
+            ## 🎙️ Just Speech to Text (Just STT) for Windows — Latest Release
+
+            Automated rolling build from the latest commit on `main`.
+
+            ### 📦 Download Options:
+            - **`JsttWin.exe`** (or **`JsttWin-x64-self-contained.zip`**): **Recommended**. Fully standalone single-file Windows executable. Runs on any 64-bit Windows 10 / Windows 11 PC out of the box without requiring .NET 10 installed.
+            - **`JsttWin-x64-framework-dependent.zip`**: Ultra-lightweight build for PCs with [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) already installed.
+
+            ### 🚀 Quick Start:
+            1. Download and run `JsttWin.exe`.
+            2. Enter your free API key from [Google AI Studio](https://aistudio.google.com/apikey).
+            3. Hold **Right Ctrl** or **Mouse 5** anywhere on Windows to start dictating!
+          files: |
+            JsttWin.exe
+            JsttWin-x64-self-contained.zip
+            JsttWin-x64-framework-dependent.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

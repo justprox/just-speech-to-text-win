@@ -1,0 +1,50 @@
+<Window x:Class="JustSTT.Views.LiveTranscriptBubbleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Just STT Live Text"
+        MinWidth="180" MaxWidth="560"
+        Height="Auto"
+        SizeToContent="WidthAndHeight"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Focusable="False"
+        WindowStartupLocation="Manual">
+
+    <Window.Resources>
+        <DropShadowEffect x:Key="GlassShadow" 
+                          Color="#000000" 
+                          BlurRadius="20" 
+                          ShadowDepth="3" 
+                          Opacity="0.25" />
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <!-- Translucent Glassmorphism Speech Bubble (No headers, pure spoken text) -->
+        <Border x:Name="CardBorder"
+                CornerRadius="14"
+                Background="{DynamicResource OverlayBubbleBg}"
+                BorderBrush="{DynamicResource OverlayBorder}"
+                BorderThickness="1"
+                Effect="{StaticResource GlassShadow}"
+                Padding="16,10,16,10">
+
+            <!-- Live Streamed Text Block -->
+            <TextBlock x:Name="LiveSpeechTextBlock"
+                       Text=""
+                       Foreground="{DynamicResource OverlayText}"
+                       FontSize="13.5"
+                       FontWeight="Normal"
+                       LineHeight="20"
+                       TextWrapping="Wrap"
+                       MaxWidth="520"
+                       MaxHeight="140" />
+        </Border>
+    </Grid>
+</Window>

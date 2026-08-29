@@ -1,0 +1,23 @@
+# Build and output directories
+bin/
+obj/
+publish/
+
+# Visual Studio / Rider / VSCode
+.vs/
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Windows thumbnail and desktop files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs and temp files
+*.log
+*.tmp
+*.bak
