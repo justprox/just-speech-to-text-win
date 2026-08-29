@@ -676,9 +676,11 @@
                             <StackPanel>
                                 <TextBlock Text="Text Insertion Method" FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,4" />
                                 <ComboBox x:Name="InsertionMethodComboBox" Margin="0,0,0,16">
-                                    <ComboBoxItem Content="Auto (Smart Select)" IsSelected="True" />
-                                    <ComboBoxItem Content="Clipboard (Instant Paste with Ctrl+V)" />
-                                    <ComboBoxItem Content="SendInput (Simulated Unicode Keystrokes)" />
+                                    <ComboBoxItem Content="Auto (Smart Select: SendInput &lt;15 chars, Ctrl+V for longer)" IsSelected="True" Tag="Auto" />
+                                    <ComboBoxItem Content="Clipboard: Ctrl+V (Standard Instant Paste)" Tag="Clipboard" />
+                                    <ComboBoxItem Content="Clipboard: Ctrl+Shift+V (Terminal &amp; Plain Text Paste)" Tag="CtrlShiftV" />
+                                    <ComboBoxItem Content="Clipboard: Shift+Insert (Classic Terminal Paste)" Tag="ShiftInsert" />
+                                    <ComboBoxItem Content="SendInput (Direct Simulated Unicode Keystrokes)" Tag="SendInput" />
                                 </ComboBox>
 
                                 <CheckBox x:Name="StartWithWindowsCheckBox" Content="Start Just STT automatically when Windows boots" />

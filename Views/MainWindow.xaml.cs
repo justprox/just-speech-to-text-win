@@ -507,9 +507,12 @@ namespace JustSTT.Views
 
                 CustomPromptTextBox.Text = settings.CustomPrompt ?? "";
 
+                string currentMethod = settings.TextInsertionMethod ?? "Auto";
                 foreach (ComboBoxItem item in InsertionMethodComboBox.Items)
                 {
-                    if (item.Content.ToString()?.StartsWith(settings.TextInsertionMethod) == true)
+                    string tag = item.Tag?.ToString() ?? "";
+                    if (tag.Equals(currentMethod, StringComparison.OrdinalIgnoreCase) ||
+                        item.Content.ToString()?.Contains(currentMethod, StringComparison.OrdinalIgnoreCase) == true)
                     {
                         InsertionMethodComboBox.SelectedItem = item;
                         break;
@@ -747,10 +750,14 @@ namespace JustSTT.Views
 
             settings.CustomPrompt = CustomPromptTextBox.Text?.Trim() ?? "";
 
-            string selectedMethod = (InsertionMethodComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "Auto";
-            if (selectedMethod.Contains("Clipboard")) settings.TextInsertionMethod = "Clipboard";
-            else if (selectedMethod.Contains("SendInput")) settings.TextInsertionMethod = "SendInput";
-            else settings.TextInsertionMethod = "Auto";
+            if (InsertionMethodComboBox.SelectedItem is ComboBoxItem selectedMethodItem)
+            {
+                settings.TextInsertionMethod = selectedMethodItem.Tag?.ToString() ?? "Auto";
+            }
+            else
+            {
+                settings.TextInsertionMethod = "Auto";
+            }
 
             settings.StartWithWindows = StartWithWindowsCheckBox.IsChecked == true;
             settings.SuppressInPasswordFields = SuppressPasswordCheckBox.IsChecked == true;

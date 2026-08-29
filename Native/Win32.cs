@@ -32,6 +32,7 @@ namespace JustSTT.Native
         public const int VK_CAPITAL = 0x14; // Caps Lock
         public const int VK_ESCAPE = 0x1B;
         public const int VK_SPACE = 0x20;
+        public const int VK_INSERT = 0x2D;
         public const int VK_LSHIFT = 0xA0;
         public const int VK_RSHIFT = 0xA1;
         public const int VK_LCONTROL = 0xA2;
