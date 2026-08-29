@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using JustSTT.Native;
@@ -12,19 +13,21 @@ namespace JustSTT.Views
     public partial class OverlayPillWindow : Window
     {
         private readonly DispatcherTimer _recordDurationTimer;
+        private DispatcherTimer? _autoHideTimer;
         private DateTime _recordStartTime;
 
         public OverlayPillWindow()
         {
             InitializeComponent();
 
-            _recordDurationTimer = new DispatcherTimer
+            _recordDurationTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+            _recordDurationTimer.Tick += (s, e) =>
             {
-                Interval = TimeSpan.FromMilliseconds(200)
+                var elapsed = DateTime.Now - _recordStartTime;
+                RecordingTimerText.Text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:D2}";
             };
-            _recordDurationTimer.Tick += OnDurationTimerTick;
 
-            Loaded += OnWindowLoaded;
+            Loaded += (s, e) => RepositionWindow();
             SizeChanged += (s, e) => RepositionWindow();
         }
 
@@ -32,17 +35,11 @@ namespace JustSTT.Views
         {
             base.OnSourceInitialized(e);
 
-            var helper = new WindowInteropHelper(this);
-            IntPtr hwnd = helper.Handle;
+            var hwnd = new WindowInteropHelper(this).Handle;
+            long exStyle = Win32.GetWindowLongPtr(hwnd, Win32.GWL_EXSTYLE).ToInt64();
+            long newStyle = exStyle | Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TOPMOST;
+            Win32.SetWindowLongPtr(hwnd, Win32.GWL_EXSTYLE, new IntPtr(newStyle));
 
-            // Apply WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST so it never steals focus
-            IntPtr exStyle = Win32.GetWindowLongPtr(hwnd, Win32.GWL_EXSTYLE);
-            long newExStyle = exStyle.ToInt64() | Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TOPMOST;
-            Win32.SetWindowLongPtr(hwnd, Win32.GWL_EXSTYLE, new IntPtr(newExStyle));
-        }
-
-        private void OnWindowLoaded(object sender, RoutedEventArgs e)
-        {
             RepositionWindow();
         }
 
@@ -63,6 +60,9 @@ namespace JustSTT.Views
         {
             Dispatcher.Invoke(() =>
             {
+                _autoHideTimer?.Stop();
+                _autoHideTimer = null;
+
                 RepositionWindow();
 
                 RecordingTimerText.Text = "0:00";
@@ -92,6 +92,8 @@ namespace JustSTT.Views
         {
             Dispatcher.Invoke(() =>
             {
+                _autoHideTimer?.Stop();
+                _autoHideTimer = null;
                 _recordDurationTimer.Stop();
 
                 RecordingStateGrid.Visibility = Visibility.Collapsed;
@@ -106,8 +108,9 @@ namespace JustSTT.Views
 
         public void ShowStartupWelcome()
         {
-            Dispatcher.Invoke(async () =>
+            Dispatcher.Invoke(() =>
             {
+                _autoHideTimer?.Stop();
                 _recordDurationTimer.Stop();
 
                 RecordingStateGrid.Visibility = Visibility.Collapsed;
@@ -119,19 +122,15 @@ namespace JustSTT.Views
                 RepositionWindow();
                 Show();
 
-                await Task.Delay(4000);
-
-                if (WelcomeStateGrid.Visibility == Visibility.Visible)
-                {
-                    Hide();
-                }
+                SetAutoHide(4.0, () => WelcomeStateGrid.Visibility == Visibility.Visible);
             });
         }
 
         public void ShowSuccess(string text)
         {
-            Dispatcher.Invoke(async () =>
+            Dispatcher.Invoke(() =>
             {
+                _autoHideTimer?.Stop();
                 _recordDurationTimer.Stop();
 
                 SuccessPreviewText.Text = "Inserted";
@@ -145,20 +144,15 @@ namespace JustSTT.Views
                 Show();
                 RepositionWindow();
 
-                await Task.Delay(1000);
-
-                // Only hide if still on success
-                if (SuccessStateGrid.Visibility == Visibility.Visible)
-                {
-                    Hide();
-                }
+                SetAutoHide(1.0, () => SuccessStateGrid.Visibility == Visibility.Visible);
             });
         }
 
         public void ShowError(string message)
         {
-            Dispatcher.Invoke(async () =>
+            Dispatcher.Invoke(() =>
             {
+                _autoHideTimer?.Stop();
                 _recordDurationTimer.Stop();
 
                 string displayMsg = message;
@@ -178,34 +172,42 @@ namespace JustSTT.Views
                 Show();
                 RepositionWindow();
 
-                await Task.Delay(1600);
+                SetAutoHide(1.6, () => ErrorStateGrid.Visibility == Visibility.Visible);
+            });
+        }
 
-                if (ErrorStateGrid.Visibility == Visibility.Visible)
+        private void SetAutoHide(double seconds, Func<bool> condition)
+        {
+            _autoHideTimer?.Stop();
+            _autoHideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(seconds) };
+            _autoHideTimer.Tick += (s, e) =>
+            {
+                _autoHideTimer?.Stop();
+                _autoHideTimer = null;
+                if (condition())
                 {
                     Hide();
                 }
-            });
+            };
+            _autoHideTimer.Start();
         }
 
         public void HideOverlay()
         {
             Dispatcher.Invoke(() =>
             {
+                _autoHideTimer?.Stop();
+                _autoHideTimer = null;
                 _recordDurationTimer.Stop();
                 Hide();
             });
         }
 
-        private void OnPillMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        private void OnPillMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            // Instantly hide the welcome badge or status overlay on user click
+            _autoHideTimer?.Stop();
+            _autoHideTimer = null;
             HideOverlay();
-        }
-
-        private void OnDurationTimerTick(object? sender, EventArgs e)
-        {
-            var elapsed = DateTime.Now - _recordStartTime;
-            RecordingTimerText.Text = $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:D2}";
         }
     }
 }

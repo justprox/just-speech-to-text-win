@@ -83,10 +83,10 @@ namespace JustSTT
 
             // 2. Initialize InputHookService BEFORE MainWindow
             _hookService = new InputHookService(_configService);
-            _hookService.TriggerPressed += OnTriggerPressed;
-            _hookService.TriggerReleased += OnTriggerReleased;
-            _hookService.CancelPressed += OnCancelPressed;
-            _hookService.HandsFreeToggleRequested += OnHandsFreeToggleRequested;
+            _hookService.TriggerPressed += trigger => Dispatcher.BeginInvoke(() => OnTriggerPressed(trigger));
+            _hookService.TriggerReleased += trigger => Dispatcher.BeginInvoke(() => OnTriggerReleased(trigger));
+            _hookService.CancelPressed += () => Dispatcher.BeginInvoke(OnCancelPressed);
+            _hookService.HandsFreeToggleRequested += () => Dispatcher.BeginInvoke(OnHandsFreeToggleRequested);
 
             // 3. Create Windows
             _overlayWindow = new OverlayPillWindow();
@@ -253,25 +253,38 @@ namespace JustSTT
             if (!_isRecording || _isTranscribing) return;
             _isTranscribing = true;
 
-            // Instantly transition HUD to Transcribing state for responsive visual feedback
-            _overlayWindow.ShowTranscribing();
-
-            // Post-Speech Grace Period (Tail Padding):
-            // Continue recording & streaming for an extra 300ms so trailing syllables
-            // and hardware buffer audio are never truncated when the key is released.
-            await Task.Delay(300);
-
-            _isRecording = false;
-            _bubbleWindow.HideBubble();
-
-            string currentModel = _configService.Settings.ModelName;
-            string liveTranscript = "";
-
             try
             {
+                // Instantly transition HUD to Transcribing state for responsive visual feedback
+                _overlayWindow.ShowTranscribing();
+
+                // Post-Speech Grace Period (Tail Padding):
+                // Continue recording & streaming for an extra 300ms so trailing syllables
+                // and hardware buffer audio are never truncated when the key is released.
+                await Task.Delay(300);
+
+                _isRecording = false;
+                _bubbleWindow.HideBubble();
+
+                string currentModel = _configService.Settings.ModelName;
+                string liveTranscript = "";
+
                 if (currentModel == "gemini-3.5-transcribe-live")
                 {
-                    liveTranscript = await _liveWsService.StopLiveSessionAndGetTranscriptAsync();
+                    try
+                    {
+                        var wsTask = _liveWsService.StopLiveSessionAndGetTranscriptAsync();
+                        var completed = await Task.WhenAny(wsTask, Task.Delay(1500));
+                        if (completed == wsTask)
+                        {
+                            liveTranscript = await wsTask;
+                        }
+                        else
+                        {
+                            _liveWsService.CancelSession();
+                        }
+                    }
+                    catch { }
                 }
 
                 double duration = await _audioService.StopRecordingAsync();
@@ -350,9 +363,15 @@ namespace JustSTT
                     _overlayWindow.ShowError(shortError);
                 }
             }
+            catch
+            {
+                _overlayWindow.ShowError("Error processing speech");
+            }
             finally
             {
                 _isTranscribing = false;
+                _isRecording = false;
+                _isHandsFreeActive = false;
             }
         }
 

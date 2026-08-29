@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using JustSTT.Native;
@@ -52,25 +53,46 @@ namespace JustSTT.Services
 
         private async Task InsertViaClipboardAsync(string text, PasteShortcut shortcut)
         {
-            IDataObject? originalClipboardData = null;
+            bool setSuccess = false;
+            string? backupText = null;
 
-            await Application.Current.Dispatcher.InvokeAsync(() =>
+            // Safely set clipboard on STA thread with retry loop to avoid COMException / deadlocks
+            await Task.Run(() =>
             {
-                try
+                var staThread = new Thread(() =>
                 {
-                    if (Clipboard.ContainsText() || Clipboard.ContainsImage())
+                    for (int retry = 0; retry < 5; retry++)
                     {
-                        originalClipboardData = Clipboard.GetDataObject();
+                        try
+                        {
+                            if (Clipboard.ContainsText())
+                            {
+                                backupText = Clipboard.GetText();
+                            }
+                            Clipboard.SetText(text);
+                            setSuccess = true;
+                            break;
+                        }
+                        catch
+                        {
+                            Thread.Sleep(30);
+                        }
                     }
-                    Clipboard.SetText(text);
-                }
-                catch
+                });
+                staThread.SetApartmentState(ApartmentState.STA);
+                staThread.Start();
+                if (!staThread.Join(500))
                 {
-                    // Fallback to direct input if clipboard fails
-                    SendTextInputDirect(text);
-                    return;
+                    staThread.Interrupt();
                 }
             });
+
+            if (!setSuccess)
+            {
+                // Fallback to direct SendInput if clipboard is locked by another app
+                SendTextInputDirect(text);
+                return;
+            }
 
             await Task.Delay(40);
 
@@ -90,18 +112,31 @@ namespace JustSTT.Services
             }
 
             // Allow sufficient time for the foreground app (VS Code, Terminal, Browser) to process the paste message
-            await Task.Delay(250);
+            await Task.Delay(200);
 
-            // Restore clipboard
-            if (originalClipboardData != null)
+            // Safely restore previous clipboard content in background without blocking
+            if (!string.IsNullOrEmpty(backupText))
             {
-                await Application.Current.Dispatcher.InvokeAsync(() =>
+                _ = Task.Run(() =>
                 {
-                    try
+                    var restoreThread = new Thread(() =>
                     {
-                        Clipboard.SetDataObject(originalClipboardData);
-                    }
-                    catch { }
+                        for (int retry = 0; retry < 3; retry++)
+                        {
+                            try
+                            {
+                                Clipboard.SetText(backupText);
+                                break;
+                            }
+                            catch
+                            {
+                                Thread.Sleep(30);
+                            }
+                        }
+                    });
+                    restoreThread.SetApartmentState(ApartmentState.STA);
+                    restoreThread.Start();
+                    restoreThread.Join(300);
                 });
             }
         }
